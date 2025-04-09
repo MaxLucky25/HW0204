@@ -16,7 +16,6 @@ export const authService = {
         if (!user || !user.emailConfirmation.isConfirmed) return null;
 
         const isValid = await bcryptService.compareHash(password, user.password);
-
         if (!isValid) return null;
 
         const accessToken = jwt.sign(

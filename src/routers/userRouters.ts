@@ -20,7 +20,7 @@ userRouter.post('/',
     inputCheckErrorsMiddleware,
     async (req: Request, res: Response) => {
         const result = await userService.createUserByAdmin(req.body);
-        result ? res.sendStatus(204) : res.sendStatus(404);
+        result ? res.sendStatus(204).json(result) : res.sendStatus(404);
     });
 
 userRouter.delete('/:id',

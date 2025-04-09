@@ -63,7 +63,7 @@ authRouter.post('/refresh-token',
     }
 );
 
-// POST /auth/logout
+
 authRouter.post('/logout',
     async (req: Request, res: Response) => {
         const refreshToken = req.cookies.refreshToken;
