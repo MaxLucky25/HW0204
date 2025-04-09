@@ -1,7 +1,8 @@
 import { userRepository } from '../repositories/userRepository';
 import { userQueryRepository } from '../repositories/userQueryRepository';
-import { CreateUserDto, UserViewModel } from '../models/userModel';
+import {CreateUserDto, UserDBType, UserViewModel} from '../models/userModel';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 
 export const userService = {
@@ -14,8 +15,30 @@ export const userService = {
         return await userRepository.delete(id);
     },
 
-    async createUserByAdmin(input: CreateUserDto): Promise<UserViewModel | null > {
-        const passwordHash = await bcrypt.hash(input.password, 10);
-        return await userRepository.createUserByAdmin(input, passwordHash);
+    async createUserByAdmin(input: CreateUserDto) {
+        if (await userRepository.doesExistByLoginOrEmail(input.login, input.email)) {
+            return null;
+        }
+
+        const user: UserDBType = {
+            id: Date.now().toString(),
+            login: input.login,
+            email: input.email,
+            password: await bcrypt.hash(input.password, 10),
+            createdAt: new Date().toISOString(),
+            emailConfirmation: {
+                confirmationCode: randomUUID(),
+                expirationDate: new Date(),
+                isConfirmed: true // Админ создает подтвержденного пользователя
+            }
+        };
+
+        await userRepository.insert(user);
+        return {
+            id: user.id,
+            login: user.login,
+            email: user.email,
+            createdAt: user.createdAt
+        };
     }
 };

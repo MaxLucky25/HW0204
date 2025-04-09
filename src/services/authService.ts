@@ -6,6 +6,7 @@ import { userRepository } from "../repositories/userRepository";
 import { emailService } from "./emailService";
 import config from "../utility/config";
 import { revokedTokenRepository } from '../repositories/revokedTokenRepository';
+import {UserDBType} from "../models/userModel";
 
 
 export const authService = {
@@ -78,24 +79,31 @@ export const authService = {
         }
     },
 
-    async register(login: string, password: string, email: string): Promise<{ userId: string, confirmationCode: string } | null> {
-        if (await userRepository.doesExistByLoginOrEmail(login, email)) return null;
+    async register(login: string, password: string, email: string) {
+        if (await userRepository.doesExistByLoginOrEmail(login, email)) {
+            return null;
+        }
 
-        const passwordHash = await bcryptService.generateHash(password);
-        const confirmation = generateConfirmation();
-        const newUser = {
+        const user: UserDBType = {
             id: Date.now().toString(),
             login,
-            password: passwordHash,
             email,
+            password: await bcryptService.generateHash(password),
             createdAt: new Date().toISOString(),
-            emailConfirmation: confirmation,
+            emailConfirmation: {
+                confirmationCode: randomUUID(),
+                expirationDate: add(new Date(), { hours: 1 }),
+                isConfirmed: false
+            }
         };
 
-        await userRepository.create(newUser);
-        await emailService.sendRegistrationEmail(email, confirmation.confirmationCode);
+        await userRepository.insert(user);
+        await emailService.sendRegistrationEmail(email, user.emailConfirmation.confirmationCode);
 
-        return { userId: newUser.id, confirmationCode: confirmation.confirmationCode };
+        return {
+            userId: user.id,
+            confirmationCode: user.emailConfirmation.confirmationCode
+        };
     },
 
     async confirm(code: string): Promise<boolean> {
@@ -127,3 +135,4 @@ function generateConfirmation() {
         isConfirmed: false,
     };
 }
+

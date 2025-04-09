@@ -1,7 +1,6 @@
-import {CreateUserDto, EmailConfirmationType, UserDBType, UserViewModel} from "../models/userModel";
+import {EmailConfirmationType, UserDBType, UserViewModel} from "../models/userModel";
 import { userCollection } from "../db/mongo-db";
-import { emailService } from "../services/emailService";
-import {randomUUID} from "crypto";
+
 
 export const userRepository = {
 
@@ -26,33 +25,10 @@ export const userRepository = {
         if (byLogin) return byLogin;
         return await this.getByEmail(email);
     },
-
-    async createUserByAdmin(input: CreateUserDto, passwordHash: string): Promise<UserViewModel | null> {
-
-        const newUser: UserDBType = {
-            id: Date.now().toString(),
-            login: input.login,
-            email: input.email,
-            password: passwordHash,
-            createdAt: new Date().toISOString(),
-            emailConfirmation: {
-                confirmationCode: randomUUID(),
-                expirationDate: new Date(),
-                isConfirmed: true,
-            },
-        };
-
-        return await userRepository.create(newUser);
-    },
-
-    async create(user: UserDBType): Promise<UserViewModel | null > {
+        // Только CRUD операции
+        async insert(user: UserDBType): Promise<void> {
             await userCollection.insertOne(user);
-        // Отправляем письмо с подтверждением
-        if (!user.emailConfirmation.isConfirmed) {
-            await emailService.sendRegistrationEmail(user.email, user.emailConfirmation.confirmationCode);
-        }
-        return this.mapToOutput(user);
-    },
+        },
 
     async updateConfirmation(userIdOrEmail: string, updateData: Partial<EmailConfirmationType>): Promise<boolean> {
         const updateFields: Record<string, any> = {};
@@ -81,9 +57,4 @@ export const userRepository = {
         const result = await userCollection.deleteOne({ id: id });
         return result.deletedCount === 1;
     },
-
-    mapToOutput(user: UserDBType): UserViewModel {
-        const { _id, password, ...rest } = user;
-        return rest;
-    }
 };
