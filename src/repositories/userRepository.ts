@@ -1,4 +1,4 @@
-import {EmailConfirmationType, UserDBType, UserViewModel} from "../models/userModel";
+import {EmailConfirmationType, UserDBType} from "../models/userModel";
 import { userCollection } from "../db/mongo-db";
 
 

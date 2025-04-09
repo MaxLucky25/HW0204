@@ -1,6 +1,6 @@
 import { userRepository } from '../repositories/userRepository';
 import { userQueryRepository } from '../repositories/userQueryRepository';
-import {CreateUserDto, UserDBType, UserViewModel} from '../models/userModel';
+import {CreateUserDto, UserDBType} from '../models/userModel';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
@@ -34,11 +34,5 @@ export const userService = {
         };
 
         await userRepository.insert(user);
-        return {
-            id: user.id,
-            login: user.login,
-            email: user.email,
-            createdAt: user.createdAt
-        };
     }
 };
