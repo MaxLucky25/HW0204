@@ -6,6 +6,7 @@ declare global {
             userId: string | null;
             userLogin?: string;
             userEmail?: string;
+            refreshToken?: string;
         }
     }
 }

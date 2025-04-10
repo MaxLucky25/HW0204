@@ -1,12 +1,11 @@
-import jwt from 'jsonwebtoken';
 import { randomUUID } from "crypto";
 import { add } from "date-fns";
 import { bcryptService } from "./bcryptService";
 import { userRepository } from "../repositories/userRepository";
 import { emailService } from "./emailService";
-import config from "../utility/config";
 import { revokedTokenRepository } from '../repositories/revokedTokenRepository';
 import {UserDBType} from "../models/userModel";
+import {jwtService} from "./jwtService";
 
 
 export const authService = {
@@ -16,66 +15,39 @@ export const authService = {
         const user = await userRepository.getByLoginOrEmail(loginOrEmail);
         if (!user || !user.emailConfirmation.isConfirmed) return null;
 
+
         const isValid = await bcryptService.compareHash(password, user.password);
         if (!isValid) return null;
 
-        const accessToken = jwt.sign(
-            { userId: user.id, login: user.login, email: user.email },
-            config.JWT_SECRET,
-            { expiresIn: config.JWT_EXPIRES_IN } as jwt.SignOptions
-        );
+        const payload = { userId: user.id.toString() };
 
-        const refreshToken = jwt.sign(
-            { userId: user.id, deviceId: randomUUID() },
-            config.JWT_REFRESH_SECRET,
-            { expiresIn: config.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
-        );
-
-        return { accessToken, refreshToken };
+        return {
+            accessToken: jwtService.createAccessToken(payload),
+            refreshToken: jwtService.createRefreshToken(payload),
+        };
     },
 
-    async revokeRefreshToken(token: string): Promise<void> {
-        await revokedTokenRepository.add(token, 20); // 20 секунд как в требованиях
+    async refreshTokens(refreshToken: string):
+        Promise<{ accessToken: string, refreshToken: string } | null> {
+        const isRevoked = await revokedTokenRepository.isRevoked(refreshToken);
+        if (isRevoked) return null;
+
+        const payload = jwtService.verifyRefreshToken(refreshToken);
+        if (!payload || !payload.userId) return null;
+
+        await this.revokeRefreshToken(refreshToken); // отзываем старый
+        const newPayload = { userId: payload.userId };
+
+        return {
+            accessToken: jwtService.createAccessToken(newPayload),
+            refreshToken: jwtService.createRefreshToken(newPayload),
+        };
     },
 
-    async isTokenRevoked(token: string): Promise<boolean> {
-        return revokedTokenRepository.exists(token);
-    },
-
-    async refreshTokens(refreshToken: string): Promise<{ accessToken: string, refreshToken: string } | null> {
-        try {
-            // Проверяем, не отозван ли токен
-            if (await this.isTokenRevoked(refreshToken)) {
-                return null;
-            }
-            // Верифицируем токен
-            const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as jwt.JwtPayload;
-            // Находим пользователя
-            const user = await userRepository.getById(decoded.userId);
-            if (!user) return null;
-
-            // Генерируем новые токены с теми же сроками
-            const newAccessToken = jwt.sign(
-                { userId: user.id, login: user.login, email: user.email },
-                config.JWT_SECRET,
-                { expiresIn: config.JWT_EXPIRES_IN }as jwt.SignOptions
-            );
-
-            const newRefreshToken = jwt.sign(
-                { userId: user.id, deviceId: decoded.deviceId },
-                config.JWT_REFRESH_SECRET,
-                { expiresIn: config.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
-            );
-
-            // Старый токен помечаем как использованный
-            await this.revokeRefreshToken(refreshToken);
-
-            return {
-                accessToken: newAccessToken,
-                refreshToken: newRefreshToken
-            };
-        } catch (e) {
-            return null;
+    async revokeRefreshToken(refreshToken: string): Promise<void> {
+        const expiresAt = jwtService.getRefreshTokenExpiry(refreshToken);
+        if (expiresAt) {
+            await revokedTokenRepository.add(refreshToken, expiresAt);
         }
     },
 
