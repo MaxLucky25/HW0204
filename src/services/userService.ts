@@ -34,5 +34,11 @@ export const userService = {
         };
 
         await userRepository.insert(user);
+        return {
+            id: user.id,
+            login: user.login,
+            email: user.email,
+            createdAt: user.createdAt
+        };
     }
 };
